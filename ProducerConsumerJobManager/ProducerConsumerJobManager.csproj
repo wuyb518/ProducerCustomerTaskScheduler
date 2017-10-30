@@ -45,6 +45,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.Xml.Linq" />
@@ -60,9 +61,11 @@
     <Compile Include="Client\ClientManagerSetting.cs" />
     <Compile Include="Client\ClientSetting.cs" />
     <Compile Include="Client\IClientManager.cs" />
+    <Compile Include="Client\ClientManagerConfigurationSection.cs" />
     <Compile Include="Customer\ICustomer.cs" />
     <Compile Include="JobManager\DefaultJobManager.cs" />
     <Compile Include="JobManager\IJobManager.cs" />
+    <Compile Include="JobManager\JobManagerConfigurationSection.cs" />
     <Compile Include="JobManager\JobManagerSetting.cs" />
     <Compile Include="Job\IJob.cs" />
     <Compile Include="Producer\IProducer.cs" />

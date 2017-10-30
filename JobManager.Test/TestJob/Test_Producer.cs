@@ -22,7 +22,7 @@ namespace JobManager.Test.TestJob
            
             for (var i = 0; i < 10000; i++)
             {
-                var delay = random.Next(300, 700);
+                var delay = random.Next(700, 2000);
                 var job = new Job
                 {
                     Id = i

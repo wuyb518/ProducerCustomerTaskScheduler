@@ -41,10 +41,10 @@ namespace JobManager.Test.TestJob
 
         public void ProcessJob(Job job)
         {
-
+            Client.ClientManager.GetInstance().SetJobSpaceData(Client.Client.Instance.JobSpaceName, Test_Config.JobBusiType, job.Id);
             var random = new Random();
-            var delay = random.Next(300, 1000);
-            if (random.Next(1, 100) < 80)
+            var delay = random.Next(700, 1500);
+            if (random.Next(1, 100) < 60)
             {
                 Console.WriteLine($"完成, {job.Id}");
                 FinishJob(job);
@@ -56,6 +56,8 @@ namespace JobManager.Test.TestJob
             {
                 Console.WriteLine($"失败, {job.Id}");
                 EndJob(job);
+                Test_JobManager.GetInstance().AddJobToQueue(job, false, true);
+                
                 //清空任务空间
                 Test_JobManager.GetInstance().ClearClientJobSpace(Client.Client.Instance.JobSpaceName);
             }
