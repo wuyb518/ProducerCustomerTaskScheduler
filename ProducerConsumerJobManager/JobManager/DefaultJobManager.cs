@@ -7,7 +7,7 @@ using StackExchange.Redis;
 
 namespace ProducerConsumerJobManager.JobManager
 {
-    public class DefaultJobManager<TJob, TId> : IJobManager<TJob, TId> where TJob : IJob<TId>
+    public class DefaultJobManager<TJob, TId> : IJobManager<TJob, TId> where TJob : class, IJob<TId>
     {
         private static readonly ILog _log = LogManager.GetLogger(typeof(DefaultJobManager<TJob, TId>));
         /// <summary>
@@ -57,12 +57,28 @@ namespace ProducerConsumerJobManager.JobManager
         /// </summary>
         /// <param name="jobId"></param>
         /// <returns></returns>
-        public bool IsJobExists(string jobId)
+        public bool IsJobExists(TId jobId)
         {
             var client = RedisWrapper.GetConnection(this.Setting.Redis_Server);
             var db = client.GetDatabase(this.Setting.Redis_DBIndex);
-            var exists = db.HashExists(this.Setting.JobList_Hash_Name, jobId);
+            var exists = db.HashExists(this.Setting.JobList_Hash_Name, jobId.ToString());
             return exists;
+        }
+
+        public TJob GetJob(TId jobId)
+        {
+            var client = RedisWrapper.GetConnection(this.Setting.Redis_Server);
+            var db = client.GetDatabase(this.Setting.Redis_DBIndex);
+
+            var jobVal = db.HashGet(this.Setting.JobList_Hash_Name, jobId.ToString());
+            if (!jobVal.HasValue)
+            {
+                return null;
+            }
+            var jobStr = jobVal.ToString();
+            var job = JsonConvert.DeserializeObject<TJob>(jobStr);
+
+            return job;
         }
 
         /// <summary>

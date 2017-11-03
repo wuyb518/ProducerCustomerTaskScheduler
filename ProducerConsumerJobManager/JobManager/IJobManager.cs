@@ -3,7 +3,7 @@ using ProducerConsumerJobManager.Job;
 
 namespace ProducerConsumerJobManager.JobManager
 {
-    public interface IJobManager<TJob, in TId> where TJob:IJob<TId>
+    public interface IJobManager<TJob, in TId> where TJob : class, IJob<TId>
     {
         bool IsJobQueueEmpty { get; }
         JobManagerSetting Setting { get; }
@@ -15,7 +15,8 @@ namespace ProducerConsumerJobManager.JobManager
         long GetJobCount_InQueue();
         long GetJobCount_Total();
         TResult GetJobResult<TResult>(TId jobId);
-        bool IsJobExists(string jobId);
+        bool IsJobExists(TId jobId);
+        TJob GetJob(TId jobId);
         void ResetJob_FromClientJobSpace(string jobSpaceName, bool addToQueueLeft = false);
         void ResetJobList_FromClientJobSpace(string jobSpaceName, bool addToQueueLeft = false);
         void SaveJobResult<TResult>(TJob job, TResult result);
