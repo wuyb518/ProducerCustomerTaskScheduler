@@ -8,17 +8,16 @@ namespace ProducerConsumerJobManager.JobManager
         bool IsJobQueueEmpty { get; }
         JobManagerSetting Setting { get; }
 
-        bool AddJobToQueue(TJob job, bool addToQueueLeft = true, bool forceAdd = false);
+        bool AddJobToQueue(TJob job, bool upperScore = true, bool allowCover = false);
         void Clear();
         void ClearClientJobSpace(string jobSpaceName);
         void EndJob(TJob job);
         long GetJobCount_InQueue();
         long GetJobCount_Total();
-        TResult GetJobResult<TResult>(TId jobId);
         bool IsJobExists(TId jobId);
         TJob GetJob(TId jobId);
-        void ResetJob_FromClientJobSpace(string jobSpaceName, bool addToQueueLeft = false);
-        void ResetJobList_FromClientJobSpace(string jobSpaceName, bool addToQueueLeft = false);
+        void ResetJob_FromClientJobSpace(string jobSpaceName);
+        void ResetJobList_FromClientJobSpace(string jobSpaceName);
         void SaveJobResult<TResult>(TJob job, TResult result);
         bool TryGetJobList_FromClientJobSpace(string jobSpaceName, out List<TJob> jobList);
         bool TryGetJob_FromClientJobSpace(string jobSpaceName, out TJob job);

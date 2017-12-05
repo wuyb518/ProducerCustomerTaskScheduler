@@ -9,5 +9,8 @@ namespace ProducerConsumerJobManager.Job
     public interface IJob<TId>
     {
         TId Id { get; set; }
+
+        //Score越大，取出时排在越前边
+        double Score { get; set; }
     }
 }

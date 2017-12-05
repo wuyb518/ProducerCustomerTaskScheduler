@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using ProducerConsumerJobManager.Producer;
 using JobManager.Test.Client;
+using ProducerConsumerJobManager.Utility;
 
 namespace JobManager.Test.TestJob
 {
@@ -19,13 +20,15 @@ namespace JobManager.Test.TestJob
             StandResetOfflineClientJobsAsync(_resetJobInterval, resetJobTokenSource.Token);
 
             var random = new Random();
-           
+
+            var timestamp = DateTimeHelper.GetCurrentLongTimestamp();
             for (var i = 0; i < 10000; i++)
             {
                 var delay = random.Next(700, 2000);
                 var job = new Job
                 {
-                    Id = i
+                    Id = i,
+                    Score = timestamp
                 };
                 Test_JobManager.GetInstance().AddJobToQueue(job);
 
@@ -75,7 +78,7 @@ namespace JobManager.Test.TestJob
             foreach (var client in clients_toRemove)
             {
                 //重置任务
-                Test_JobManager.GetInstance().ResetJob_FromClientJobSpace(client.JobSpaceName, false);
+                Test_JobManager.GetInstance().ResetJob_FromClientJobSpace(client.JobSpaceName);
 
                 //删除客户端,不在这里删了
                 //ClientManager.RemoveClient(client.Setting.ClientId);

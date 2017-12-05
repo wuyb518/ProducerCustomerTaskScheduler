@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
 using log4net;
 using Newtonsoft.Json;
 using ProducerConsumerJobManager.Job;
@@ -10,10 +12,13 @@ namespace ProducerConsumerJobManager.JobManager
     public class DefaultJobManager<TJob, TId> : IJobManager<TJob, TId> where TJob : class, IJob<TId>
     {
         private static readonly ILog _log = LogManager.GetLogger(typeof(DefaultJobManager<TJob, TId>));
+
         /// <summary>
         /// 配置信息
         /// </summary>
         public JobManagerSetting Setting { get; set; }
+
+        public string LockName => Setting.JobList_Queue_Name + "_lock";
 
 
         /// <summary>
@@ -85,37 +90,48 @@ namespace ProducerConsumerJobManager.JobManager
         /// 添加任务到任务队列
         /// </summary>
         /// <param name="job"></param>
-        /// <param name="addToQueueLeft">true则添加到队列左侧,false则右侧</param>
-        /// <param name="forceAdd">忽略jobidlist_hash是否已经存在,强制添加</param>
-        public bool AddJobToQueue(TJob job, bool addToQueueLeft = true, bool forceAdd = false)
+        /// <param name="upperScore">true 如果就任务存在</param>
+        /// <param name="allowCover">忽略jobidlist_hash是否已经存在,强制添加</param>
+        public bool AddJobToQueue(TJob job, bool upperScore = true, bool allowCover = false)
         {
-            var taskIdStr = job.Id.ToString();
+            var jobId = job.Id.ToString();
+            var score = job.Score;
             var taskStr = JsonConvert.SerializeObject(job);
             var client = RedisWrapper.GetConnection(this.Setting.Redis_Server);
             var db = client.GetDatabase(this.Setting.Redis_DBIndex);
-            var tran = db.CreateTransaction();
 
-            //检查任务是否已存在
-            var existCondition = Condition.HashNotExists(this.Setting.JobList_Hash_Name, taskIdStr);
-            if (!forceAdd)
+            var lockObj = EnterLock(this.LockName, new TimeSpan(0, 0, 30));
+            if (lockObj == null)
             {
-                //如果不是强制添加,则进行重复判定
+                throw new Exception("EnterLock return null");
+            }
+
+            var queueName = this.Setting.JobList_Queue_Name;
+            var hashName = this.Setting.JobList_Hash_Name;
+
+            if (upperScore)
+            {
+                var oldScore = db.SortedSetScore(queueName, jobId);
+                if (oldScore != null && oldScore.Value > job.Score)
+                {
+                    score = oldScore.Value;
+                }
+            }
+            //检查任务是否已存在
+            var tran = db.CreateTransaction();
+           
+            if (!allowCover)
+            {
+                var existCondition = Condition.HashNotExists(this.Setting.JobList_Hash_Name, jobId);
+                //避免hash值覆盖
                 tran.AddCondition(existCondition);
             }
-            //强制覆盖hashset
-            tran.HashSetAsync(this.Setting.JobList_Hash_Name, taskIdStr, taskStr);
-            if (addToQueueLeft)
-            {
-                //添加到队列左侧
-                tran.ListLeftPushAsync(this.Setting.JobList_Queue_Name, taskIdStr);
-            }
-            else
-            {
-                //添加到队列右侧
-                tran.ListRightPushAsync(this.Setting.JobList_Queue_Name, taskIdStr);
-            }
+
+            tran.SortedSetAddAsync(queueName, jobId, score);
+            tran.HashSetAsync(hashName, jobId, taskStr);
 
             var result = tran.Execute();
+            LeaveLock(lockObj);
             return result;
         }
 
@@ -270,20 +286,35 @@ namespace ProducerConsumerJobManager.JobManager
         public bool TryGetJob_FromJobQueue(out TJob job, bool rightFirst = true)
         {
             var client = RedisWrapper.GetConnection(this.Setting.Redis_Server);
+
+            var lockObj = EnterLock(this.LockName, new TimeSpan(0, 0, 30));
+            if (lockObj == null)
+            {
+                throw new Exception("EnterLock return null");
+            }
+
             var db = client.GetDatabase(this.Setting.Redis_DBIndex);
 
-            var jobIdVal = rightFirst
-                ? db.ListRightPopAsync(this.Setting.JobList_Queue_Name).Result
-                : db.ListLeftPopAsync(this.Setting.JobList_Queue_Name).Result;
+            var queueName = this.Setting.JobList_Queue_Name;
+            var hashName = this.Setting.JobList_Hash_Name;
 
-            if (!jobIdVal.HasValue)
+            var orderBy = rightFirst ? Order.Descending : Order.Ascending;
+            var redisVals = db.SortedSetRangeByRank(queueName, 0, 0, orderBy).ToStringArray();
+
+            if (redisVals.Length == 0)
             {
+                LeaveLock(lockObj);
+
                 job = default(TJob);
                 return false;
             }
 
-            var jobIdStr = jobIdVal.ToString();
-            var jobVal = db.HashGet(this.Setting.JobList_Hash_Name, jobIdStr);
+            var jobIdStr = redisVals[0];
+            db.SortedSetRemove(queueName, jobIdStr);
+
+            LeaveLock(lockObj);
+
+            var jobVal = db.HashGet(hashName, jobIdStr);
             if (!jobVal.HasValue)
             {
                 job = default(TJob);
@@ -305,23 +336,23 @@ namespace ProducerConsumerJobManager.JobManager
         /// </summary>
         /// <param name="jobSpaceName"></param>
         /// <param name="addToQueueLeft"></param>
-        public virtual void ResetJob_FromClientJobSpace(string jobSpaceName, bool addToQueueLeft = false)
+        public virtual void ResetJob_FromClientJobSpace(string jobSpaceName)
         {
             TJob job;
             if (TryGetJob_FromClientJobSpace(jobSpaceName, out job))
             {
-                AddJobToQueue(job, addToQueueLeft, true);
+                AddJobToQueue(job);
             }
         }
 
-        public virtual void ResetJobList_FromClientJobSpace(string jobSpaceName, bool addToQueueLeft = false)
+        public virtual void ResetJobList_FromClientJobSpace(string jobSpaceName)
         {
             List<TJob> jobList;
             if (TryGetJobList_FromClientJobSpace(jobSpaceName, out jobList))
             {
                 jobList?.ForEach(job =>
                 {
-                    AddJobToQueue(job, addToQueueLeft, true);
+                    AddJobToQueue(job);
                 });
 
             }
@@ -341,21 +372,6 @@ namespace ProducerConsumerJobManager.JobManager
             tran.Execute();
         }
 
-        public virtual TResult GetJobResult<TResult>(TId jobId)
-        {
-            var client = RedisWrapper.GetConnection(this.Setting.Redis_Server);
-            var db = client.GetDatabase(this.Setting.Redis_DBIndex);
-
-            var resultVal = db.HashGet(Setting.JobResultList_Hash_Name, jobId.ToString());
-
-            if (!resultVal.HasValue)
-            {
-                return default(TResult);
-            }
-
-            return JsonConvert.DeserializeObject<TResult>(resultVal.ToString());
-        }
-
         public virtual void SaveJobResult<TResult>(TJob job, TResult result)
         {
             var client = RedisWrapper.GetConnection(this.Setting.Redis_Server);
@@ -363,6 +379,34 @@ namespace ProducerConsumerJobManager.JobManager
 
             var resultVal = JsonConvert.SerializeObject(result);
             db.HashSet(Setting.JobResultList_Hash_Name, job.Id.ToString(), resultVal);
+        }
+
+
+        private Redlock.CSharp.Lock EnterLock(string lockName, TimeSpan timespan, Func<bool> retryUntil = null)
+        {
+            var client = RedisWrapper.GetConnection(this.Setting.Redis_Server);
+            var redlock = new Redlock.CSharp.Redlock(client);
+
+            Redlock.CSharp.Lock lockObj = null;
+
+            //自旋，直到获得锁
+            SpinWait.SpinUntil(() =>
+            {
+                if (redlock.Lock(lockName, timespan, out lockObj))
+                {
+                    return true;
+                }
+                return retryUntil?.Invoke() ?? false;
+            });
+
+            return lockObj;
+        }
+
+        private void LeaveLock(Redlock.CSharp.Lock lockObj)
+        {
+            var client = RedisWrapper.GetConnection(this.Setting.Redis_Server);
+            var redlock = new Redlock.CSharp.Redlock(client);
+            redlock.Unlock(lockObj);
         }
 
     }
