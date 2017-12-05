@@ -56,7 +56,7 @@ namespace JobManager.Test.TestJob
             {
                 Console.WriteLine($"失败, {job.Id}");
                 EndJob(job);
-                Test_JobManager.GetInstance().AddJobToQueue(job, false, true);
+                //Test_JobManager.GetInstance().AddJobToQueue(job, false, true);
                 
                 //清空任务空间
                 Test_JobManager.GetInstance().ClearClientJobSpace(Client.Client.Instance.JobSpaceName);

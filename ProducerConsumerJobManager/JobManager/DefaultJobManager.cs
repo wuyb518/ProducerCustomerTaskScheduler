@@ -41,7 +41,7 @@ namespace ProducerConsumerJobManager.JobManager
         {
             var client = RedisWrapper.GetConnection(this.Setting.Redis_Server);
             var db = client.GetDatabase(this.Setting.Redis_DBIndex);
-            var length = db.ListLength(this.Setting.JobList_Queue_Name);
+            var length = db.SortedSetLength(this.Setting.JobList_Queue_Name);
             return length;
         }
 
@@ -283,7 +283,7 @@ namespace ProducerConsumerJobManager.JobManager
         /// <param name="job"></param>
         /// <param name="rightFirst"></param>
         /// <returns></returns>
-        public bool TryGetJob_FromJobQueue(out TJob job, bool rightFirst = true)
+        public bool TryGetJob_FromJobQueue(out TJob job)
         {
             var client = RedisWrapper.GetConnection(this.Setting.Redis_Server);
 
@@ -298,8 +298,7 @@ namespace ProducerConsumerJobManager.JobManager
             var queueName = this.Setting.JobList_Queue_Name;
             var hashName = this.Setting.JobList_Hash_Name;
 
-            var orderBy = rightFirst ? Order.Descending : Order.Ascending;
-            var redisVals = db.SortedSetRangeByRank(queueName, 0, 0, orderBy).ToStringArray();
+            var redisVals = db.SortedSetRangeByRank(queueName, 0, 0, Order.Descending).ToStringArray();
 
             if (redisVals.Length == 0)
             {

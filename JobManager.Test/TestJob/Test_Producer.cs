@@ -24,7 +24,7 @@ namespace JobManager.Test.TestJob
             var timestamp = DateTimeHelper.GetCurrentLongTimestamp();
             for (var i = 0; i < 10000; i++)
             {
-                var delay = random.Next(700, 2000);
+                var delay = random.Next(70, 200);
                 var job = new Job
                 {
                     Id = i,

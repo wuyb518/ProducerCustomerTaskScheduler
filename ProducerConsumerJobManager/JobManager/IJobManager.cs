@@ -21,6 +21,6 @@ namespace ProducerConsumerJobManager.JobManager
         void SaveJobResult<TResult>(TJob job, TResult result);
         bool TryGetJobList_FromClientJobSpace(string jobSpaceName, out List<TJob> jobList);
         bool TryGetJob_FromClientJobSpace(string jobSpaceName, out TJob job);
-        bool TryGetJob_FromJobQueue(out TJob job, bool rightFirst = true);
+        bool TryGetJob_FromJobQueue(out TJob job);
     }
 }

@@ -12,9 +12,9 @@ namespace JobManager.Test
         {
 
             Client.ClientManager.GetInstance().StandKeepAliveAsnyc(CancellationToken.None);
-            //TestJob.Test_JobManager.GetInstance().Clear();
-            //ActProducer();
-            ActCustomer();
+            TestJob.Test_JobManager.GetInstance().Clear();
+            ActProducer();
+            //ActCustomer();
 
             Console.ReadLine();
         }
